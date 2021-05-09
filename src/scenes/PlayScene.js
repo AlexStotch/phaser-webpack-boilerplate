@@ -8,6 +8,7 @@ class PlayScene extends BaseScene{
 		super('PlayScene', config);
 		this.bird = null;
 		this.pipes = null;
+		this.isPaused =  null;
 		
 		this.pipeVerticalDistanceRange = [100, 250];
 		this.pipeHorizontalDistanceRange = [450, 500];
@@ -15,9 +16,26 @@ class PlayScene extends BaseScene{
 		
 		this.score = 0;
 		this.scoreText = null;
+
+		this.currentDifficulty = 'easy';
+		this.difficulties = {
+			'easy': { 
+				pipeHorizontalDistanceRange: [300, 350],
+				pipeVerticalDistanceRange: [150, 200]
+			},
+			'normal': {
+				pipeHorizontalDistanceRange: [280, 330],
+				pipeVerticalDistanceRange: [140, 190]
+			},
+			'hard': {
+				pipeHorizontalDistanceRange: [250, 310],
+				pipeVerticalDistanceRange: [120, 170]
+			}
+		}
 	}
 	
 	create() {
+		this.currentDifficulty = 'easy';
 		super.create();
 		this.createBird();
 		this.createPipes();
@@ -26,6 +44,15 @@ class PlayScene extends BaseScene{
 		this.createPause();
 		this.handleInputs();
 		this.listenToEvents();
+		
+		this.anims.create({
+			key: 'fly',
+			frames: this.anims.generateFrameNumbers('bird', {start: 9, end: 16}),
+			frameRate: 8,
+			repeat: -1
+		});
+
+		this.bird.play('fly');
 	}
 	
 	update() {
@@ -52,6 +79,7 @@ class PlayScene extends BaseScene{
 		this.initialTime--; 
 		this.countDownText.setText('Fly in ' + this.initialTime);
 		if (this.initialTime <= 0) {
+			this.isPaused = false;
 			this.countDownText.setText('');
 			this.physics.resume();
 			this.timedEvent.remove();
@@ -63,7 +91,12 @@ class PlayScene extends BaseScene{
 	}
 	
 	createBird() {
-		this.bird = this.physics.add.sprite(this.config.startPosition.x, this.config.startPosition.y, 'bird').setOrigin(0);
+		this.bird = this.physics.add.sprite(this.config.startPosition.x, this.config.startPosition.y, 'bird')
+			.setFlipX(true)
+			.setScale(3)
+			.setOrigin(0);
+
+		this.bird.setBodySize(this.bird.width, this.bird.height - 6)
 		this.bird.body.gravity.y = 400;
 		this.bird.setCollideWorldBounds();
 	}
@@ -97,11 +130,14 @@ class PlayScene extends BaseScene{
 	}
 	
 	createPause() {
+		this.isPaused = true;
 		const pauseButton = this.add.image(this.config.width - 10, this.config.height - 10, 'pause')
 		.setScale(3)
 		.setOrigin(1);
 		pauseButton.setInteractive();
+
 		pauseButton.on('pointerdown', () => {
+			this.isPaused = true;
 			this.physics.pause();
 			this.scene.pause();
 			this.scene.launch('PauseScene');
@@ -120,10 +156,11 @@ class PlayScene extends BaseScene{
 	}
 	
 	placePipe(upperPipe, lowerPipe) {
+		const difficulty = this.difficulties[this.currentDifficulty];
 		const rightMostX = this.getRightMostPipe();
-		const pipeVerticalDistance = Phaser.Math.Between(...this.pipeVerticalDistanceRange);
+		const pipeVerticalDistance = Phaser.Math.Between(...difficulty.pipeVerticalDistanceRange);
 		const pipeVerticalPosition = Phaser.Math.Between(20, this.config.height - 20 - pipeVerticalDistance);
-		const pipeHorizotalDistance = Phaser.Math.Between(...this.pipeHorizontalDistanceRange);
+		const pipeHorizotalDistance = Phaser.Math.Between(...difficulty.pipeHorizontalDistanceRange);
 		
 		upperPipe.x = rightMostX + pipeHorizotalDistance;
 		upperPipe.y = pipeVerticalPosition;
@@ -141,9 +178,20 @@ class PlayScene extends BaseScene{
 					this.placePipe(...tempPipes);
 					this.increaseScore();
 					this.setBestScore();
+					this.incraseDifficulty();
 				}
 			}
 		});
+	}
+
+	incraseDifficulty() {
+		if (this.score === 3) {
+			this.currentDifficulty = 'normal';
+		} 
+		
+		if (this.score === 6) {
+			this.currentDifficulty = 'hard';
+		} 
 	}
 	
 	getRightMostPipe() {
@@ -158,7 +206,7 @@ class PlayScene extends BaseScene{
 	setBestScore() {
 		const bestScoreText = localStorage.getItem('bestScore');
 		const bestScore = bestScoreText && parseInt(bestScoreText, 10);
-		if (!bestScore || this.scoreText > bestScore) {
+		if (!bestScore || this.score > bestScore) {
 			localStorage.setItem('bestScore', this.score);
 		}
 	}
@@ -176,6 +224,7 @@ class PlayScene extends BaseScene{
 	}
 	
 	flap() {
+		if (!this.isPaused) { return; }
 		this.bird.body.velocity.y = -this.flapVelocity;
 	}
 	
